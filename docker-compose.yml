@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: backend-postgres
+    env_file:
+      - .env
+    # Host port = POSTGRES_PORT from .env (app uses the same value to connect).
+    # Defaults to 5432 if unset; use e.g. 5433 when host 5432 is already taken.
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-appdb} || exit 1"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build: .
+    container_name: backend-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Reach Postgres on the Compose network (not localhost / host-mapped port).
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
