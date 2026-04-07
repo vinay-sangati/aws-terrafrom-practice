@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -5,6 +7,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.product import Product
 from app.schemas.product import ProductCreate, ProductRead, ProductUpdate
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -19,6 +23,7 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db)) -> Pro
     db.add(product)
     db.commit()
     db.refresh(product)
+    logger.info("product created id=%s", product.id)
     return product
 
 
@@ -57,5 +62,6 @@ def delete_product(product_id: int, db: Session = Depends(get_db)) -> None:
     product = db.get(Product, product_id)
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+    logger.info("product deleted id=%s", product_id)
     db.delete(product)
     db.commit()

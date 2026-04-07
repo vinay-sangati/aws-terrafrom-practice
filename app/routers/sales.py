@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -9,6 +10,8 @@ from app.models.product import Product
 from app.models.sale import Sale
 from app.models.user import User
 from app.schemas.sale import SaleCreate, SaleRead
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sales", tags=["sales"])
 
@@ -39,6 +42,7 @@ def create_sale(payload: SaleCreate, db: Session = Depends(get_db)) -> Sale:
     db.add(sale)
     db.commit()
     db.refresh(sale)
+    logger.info("sale created id=%s user_id=%s product_id=%s", sale.id, sale.user_id, sale.product_id)
     return sale
 
 

@@ -42,3 +42,4 @@ def publish_user_created(user: "User") -> None:
     except (ClientError, BotoCoreError):
         logger.exception("Failed to publish user.created to SQS")
         raise
+    logger.info("SQS user.created sent user_id=%s", user.id)

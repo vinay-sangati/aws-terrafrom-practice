@@ -1,3 +1,5 @@
+import logging
+
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -8,6 +10,8 @@ from app.models.user import User
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 from app.security import hash_password
 from app.sqs_events import publish_user_created
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -28,6 +32,7 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)) -> User:
     try:
         publish_user_created(user)
     except ValueError:
+        logger.warning("user create rolled back: SQS queue URL not configured user_id=%s", user.id)
         db.delete(user)
         db.commit()
         raise HTTPException(
@@ -35,12 +40,14 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)) -> User:
             detail="SQS_USER_CREATED_QUEUE_URL is not configured",
         )
     except (ClientError, BotoCoreError):
+        logger.warning("user create rolled back: SQS publish failed user_id=%s", user.id)
         db.delete(user)
         db.commit()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="User was not created: failed to publish event to SQS",
         )
+    logger.info("user created id=%s", user.id)
     return user
 
 
@@ -81,5 +88,6 @@ def delete_user(user_id: int, db: Session = Depends(get_db)) -> None:
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    logger.info("user deleted id=%s", user_id)
     db.delete(user)
     db.commit()
