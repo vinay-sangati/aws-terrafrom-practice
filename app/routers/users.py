@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserRead, UserUpdate
+from app.s3_events import delete_user_created_json, put_user_created_json
 from app.security import hash_password
+from app.sns_events import publish_user_created as publish_user_created_sns
 from app.sqs_events import publish_user_created
 
 logger = logging.getLogger(__name__)
@@ -29,10 +31,30 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)) -> User:
     db.add(user)
     db.commit()
     db.refresh(user)
+    s3_key: str | None = None
+    try:
+        s3_key = put_user_created_json(user)
+    except ValueError:
+        logger.warning("user create rolled back: S3 bucket not configured user_id=%s", user.id)
+        db.delete(user)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="S3_USER_CREATED_BUCKET is not configured",
+        )
+    except (ClientError, BotoCoreError):
+        logger.warning("user create rolled back: S3 upload failed user_id=%s", user.id)
+        db.delete(user)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="User was not created: failed to save event to S3",
+        )
     try:
         publish_user_created(user)
     except ValueError:
         logger.warning("user create rolled back: SQS queue URL not configured user_id=%s", user.id)
+        delete_user_created_json(s3_key)
         db.delete(user)
         db.commit()
         raise HTTPException(
@@ -41,11 +63,32 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)) -> User:
         )
     except (ClientError, BotoCoreError):
         logger.warning("user create rolled back: SQS publish failed user_id=%s", user.id)
+        delete_user_created_json(s3_key)
         db.delete(user)
         db.commit()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="User was not created: failed to publish event to SQS",
+        )
+    try:
+        publish_user_created_sns(user)
+    except ValueError:
+        logger.warning("user create rolled back: SNS topic ARN not configured user_id=%s", user.id)
+        delete_user_created_json(s3_key)
+        db.delete(user)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SNS_USER_CREATED_TOPIC_ARN is not configured",
+        )
+    except (ClientError, BotoCoreError):
+        logger.warning("user create rolled back: SNS publish failed user_id=%s", user.id)
+        delete_user_created_json(s3_key)
+        db.delete(user)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="User was not created: failed to publish event to SNS",
         )
     logger.info("user created id=%s", user.id)
     return user

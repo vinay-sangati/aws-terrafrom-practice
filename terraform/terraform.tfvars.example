@@ -1,0 +1,18 @@
+aws_region  = "us-east-1"
+name_prefix = "commerce-api"
+environment = "dev"
+
+# ECS task role for the API (taskRoleArn). Set false if you attach iam_policy_api_messaging elsewhere.
+create_ecs_task_role = true
+
+# Optional: RDS / app secrets (GetSecretValue)
+# secretsmanager_secret_arns = [
+#   "arn:aws:secretsmanager:us-east-1:123456789012:secret:rds!cluster-xxx",
+# ]
+
+# Optional: bucket ARN only (app uses objects under prefix in that bucket)
+# s3_bucket_arn = "arn:aws:s3:::your-bucket-name"
+
+# tags = {
+#   Team = "platform"
+# }

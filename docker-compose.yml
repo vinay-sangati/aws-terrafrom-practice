@@ -22,6 +22,7 @@ services:
     container_name: backend-api
     ports:
       - "8000:8000"
+    # App reads config.yaml (baked from config.example.yaml in the image, or mount your own).
     env_file:
       - .env
     environment:

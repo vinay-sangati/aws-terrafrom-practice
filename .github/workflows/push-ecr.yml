@@ -1,0 +1,62 @@
+# Build the API image and push to Amazon ECR (for App Runner / ECS).
+#
+# Required GitHub configuration:
+#   - Variable: ECR_REPOSITORY — short name from Terraform output ecr_repository_name
+#             (e.g. commerce-api-dev-api)
+#   - Secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY — IAM user with ECR push rights
+#
+# IAM: ecr:GetAuthorizationToken (resource *), plus layer/image APIs on
+#   arn:aws:ecr:REGION:ACCOUNT:repository/ECR_REPOSITORY
+#
+# Optional GitHub variable: AWS_REGION (defaults to us-east-1)
+
+name: Build and push to ECR
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+concurrency:
+  group: ecr-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          if [ -z "$REPOSITORY" ]; then
+            echo "::error::Set GitHub variable ECR_REPOSITORY to your ECR repo name (Terraform output ecr_repository_name)."
+            exit 1
+          fi
+          docker build -t "$REGISTRY/$REPOSITORY:$IMAGE_TAG" .
+          docker tag "$REGISTRY/$REPOSITORY:$IMAGE_TAG" "$REGISTRY/$REPOSITORY:latest"
+          docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"
+          docker push "$REGISTRY/$REPOSITORY:latest"
+          echo "Pushed $REGISTRY/$REPOSITORY:$IMAGE_TAG and :latest"

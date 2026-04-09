@@ -14,23 +14,27 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _sqs_client():
+def _sns_client():
     kwargs: dict = {"region_name": settings.aws_region}
     if settings.aws_endpoint_url:
         kwargs["endpoint_url"] = settings.aws_endpoint_url
-    return boto3.client("sqs", **kwargs)
+    return boto3.client("sns", **kwargs)
 
 
 def publish_user_created(user: "User") -> None:
-    queue_url = settings.sqs_user_created_queue_url.strip()
-    if not queue_url:
-        raise ValueError("SQS_USER_CREATED_QUEUE_URL is not configured")
+    topic_arn = settings.sns_user_created_topic_arn.strip()
+    if not topic_arn:
+        raise ValueError("SNS_USER_CREATED_TOPIC_ARN is not configured")
 
-    body = json.dumps(build_user_created_payload(user), default=str)
-    client = _sqs_client()
+    message = json.dumps(build_user_created_payload(user), default=str)
+    client = _sns_client()
     try:
-        client.send_message(QueueUrl=queue_url, MessageBody=body)
+        client.publish(
+            TopicArn=topic_arn,
+            Message=message,
+            Subject="user.created",
+        )
     except (ClientError, BotoCoreError):
-        logger.exception("Failed to publish user.created to SQS")
+        logger.exception("Failed to publish user.created to SNS")
         raise
-    logger.info("SQS user.created sent user_id=%s", user.id)
+    logger.info("SNS user.created published user_id=%s", user.id)

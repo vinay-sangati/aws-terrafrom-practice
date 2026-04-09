@@ -1,0 +1,24 @@
+# Copy to config.yaml and adjust (config.yaml is gitignored for secrets).
+
+# Aurora / RDS with Secrets Manager: set password_secret_id (name or ARN). IAM needs
+# secretsmanager:GetSecretValue on that secret. For JSON secrets like {"password":"..."},
+# set password_secret_json_key.
+#
+# Local dev: set password and omit password_secret_id.
+postgresql:
+  user: app_user
+  host: my-cluster.cluster-xxxxxxxxxxxx.us-east-1.rds.amazonaws.com
+  port: 5432
+  database: appdb
+  ssl_mode: require
+  password_secret_id: rds!cluster-7a7f789b-eab5-4c36-bf9e-0e44810f810f
+  password_secret_json_key: password
+
+aws:
+  region: us-east-1
+  endpoint_url: null
+  sqs_user_created_queue_url: https://sqs.us-east-1.amazonaws.com/123456789012/your-queue-name
+  s3_user_created_bucket: your-bucket-name
+  s3_user_created_prefix: user-created
+  # IAM: sns:Publish on this topic
+  sns_user_created_topic_arn: arn:aws:sns:us-east-1:123456789012:user-created

@@ -8,6 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY config.example.yaml ./config.yaml
 COPY alembic.ini .
 COPY alembic ./alembic
 COPY app ./app
