@@ -1,9 +1,10 @@
 # Build the API image and push to Amazon ECR (for App Runner / ECS).
 #
 # Required GitHub configuration:
-#   - Variable: ECR_REPOSITORY — short name from Terraform output ecr_repository_name
-#             (e.g. commerce-api-dev-api)
 #   - Secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY — IAM user with ECR push rights
+#
+# Optional variable: ECR_REPOSITORY — overrides default commerce-api-dev-api
+#   (must match Terraform: {name_prefix}-{environment}-api, see ecr_repository_name output)
 #
 # IAM: ecr:GetAuthorizationToken (resource *), plus layer/image APIs on
 #   arn:aws:ecr:REGION:ACCOUNT:repository/ECR_REPOSITORY
@@ -48,13 +49,10 @@ jobs:
       - name: Build and push
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
-          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          # Default matches Terraform variables name_prefix=commerce-api, environment=dev
+          REPOSITORY: ${{ vars.ECR_REPOSITORY || 'commerce-api-dev-api' }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          if [ -z "$REPOSITORY" ]; then
-            echo "::error::Set GitHub variable ECR_REPOSITORY to your ECR repo name (Terraform output ecr_repository_name)."
-            exit 1
-          fi
           docker build -t "$REGISTRY/$REPOSITORY:$IMAGE_TAG" .
           docker tag "$REGISTRY/$REPOSITORY:$IMAGE_TAG" "$REGISTRY/$REPOSITORY:latest"
           docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"
